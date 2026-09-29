@@ -17,7 +17,7 @@ Site statique (HTML/CSS + un script JS), sans outil de construction, hébergé s
 | `404.html` | Page « introuvable » |
 | `css/style.css` | Styles (couleurs en haut du fichier, dans `:root`) |
 | `js/main.js` | Animations, menu mobile, formulaire |
-| `images/` | Photos, logo et favicon |
+| `images/` | Photos, logo et favicon (les illustrations de « Nos solutions » sont dessinées en SVG dans la page) |
 | `documents/lsa_art45.pdf` | Informations LSA art. 45 (mentions légales) |
 
 ## Voir le site en local

@@ -779,14 +779,76 @@ em { font-style: italic; }
   transition: transform 0.6s var(--ease), box-shadow 0.6s var(--ease);
 }
 .solution:hover { transform: translateY(-8px); box-shadow: 0 30px 60px rgba(5, 4, 22, 0.16); }
-.solution-media { overflow: hidden; background: linear-gradient(135deg, var(--navy), var(--red)); }
-.solution-img {
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  width: 100%;
-  transition: transform 1s var(--ease);
+/* Illustrations dessinées (bleu nuit + bordeaux) */
+.solution-media {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(60% 70% at 78% 18%, rgba(43, 39, 168, 0.85), transparent 70%),
+    radial-gradient(50% 60% at 12% 100%, rgba(163, 0, 21, 0.6), transparent 70%),
+    var(--night);
 }
-.solution:hover .solution-img { transform: scale(1.08); }
+.solution-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.illu {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  fill: none;
+  stroke: var(--white);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+.illu .soft { stroke: rgba(255, 255, 255, 0.35); stroke-width: 2; }
+.illu .accent { stroke: #ff6b7d; }
+.illu .accent-fill { fill: #ff6b7d; stroke: none; }
+
+/* le trait se dessine quand la carte apparaît */
+.illu .draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.6s var(--ease) calc(var(--d, 0s) + 0.2s);
+}
+.solution.reveal:not(.is-in) .illu .draw { stroke-dashoffset: 1; transition: none; }
+
+/* bouclier : ondes et étincelles */
+.illu-shield .ring { stroke: rgba(255, 107, 125, 0.4); stroke-width: 1.5; transform-origin: 200px 152px; animation: ring 3.6s ease-out infinite; }
+.illu-shield .ring-2 { animation-delay: 1.8s; }
+@keyframes ring { from { transform: scale(0.75); opacity: 0.9; } to { transform: scale(1.35); opacity: 0; } }
+.illu .spark circle { animation: twinkle 2.4s ease-in-out infinite; }
+.illu .spark circle:nth-child(2) { animation-delay: 0.8s; }
+.illu .spark circle:nth-child(3) { animation-delay: 1.6s; }
+@keyframes twinkle { 50% { opacity: 0.15; } }
+.illu-shield > path { transform-origin: 200px 152px; transition: transform 0.6s var(--ease), stroke-dashoffset 1.6s var(--ease) calc(var(--d, 0s) + 0.2s); }
+.solution:hover .illu-shield > path { transform: scale(1.06); }
+
+/* parapluie : la pluie tombe, la toile se balance au survol */
+.illu-umbrella .rain line { stroke: rgba(255, 255, 255, 0.45); stroke-width: 2; animation: rain 1.6s linear infinite; }
+.illu-umbrella .rain line:nth-child(2n) { animation-delay: 0.5s; }
+.illu-umbrella .rain line:nth-child(3n) { animation-delay: 1s; }
+@keyframes rain { from { transform: translate(0, -20px); opacity: 0; } 30% { opacity: 1; } to { transform: translate(-10px, 40px); opacity: 0; } }
+.illu-umbrella .canopy { transform-origin: 200px 168px; transition: transform 0.8s var(--ease); }
+.solution:hover .illu-umbrella .canopy { transform: rotate(-6deg) scale(1.04); }
+
+/* croissance : les barres montent, la pousse grandit au survol */
+.illu-growth .bars rect { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.25); stroke-width: 1.5; transform-box: fill-box; transform-origin: bottom; transition: transform 1.2s var(--ease); }
+.illu-growth .bars rect:nth-child(2) { transition-delay: 0.1s; }
+.illu-growth .bars rect:nth-child(3) { transition-delay: 0.2s; }
+.illu-growth .bars rect:nth-child(4) { transition-delay: 0.3s; }
+.solution.reveal:not(.is-in) .illu-growth .bars rect { transform: scaleY(0); }
+.illu-growth .plant { transform-origin: 200px 240px; transition: transform 0.8s var(--ease); }
+.solution:hover .illu-growth .plant { transform: scale(1.12); }
 .solution-body { display: flex; flex-direction: column; flex: 1; padding: 30px 28px 32px; }
 .solution h3 { font-size: 1.8rem; }
 .solution p { color: var(--muted); flex: 1; }
