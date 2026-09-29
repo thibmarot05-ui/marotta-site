@@ -163,7 +163,7 @@
 
   /* ---------- Photo manquante : on laisse voir le dégradé de fond ---------- */
 
-  document.querySelectorAll(".solution-img, .about-photo").forEach(function (img) {
+  document.querySelectorAll(".about-photo").forEach(function (img) {
     function hide() { img.style.visibility = "hidden"; }
     if (img.complete && img.naturalWidth === 0) hide();
     img.addEventListener("error", hide);
