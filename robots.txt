@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://marotta.ch/sitemap.xml

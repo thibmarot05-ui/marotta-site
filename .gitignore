@@ -1,0 +1,11 @@
+# Fichiers système
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Secrets éventuels
+.env
+*.key
+
+# Configuration locale de Claude Code
+.claude/
