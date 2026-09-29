@@ -877,8 +877,10 @@ em { font-style: italic; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   background: linear-gradient(135deg, var(--navy), var(--red));
+  height: auto;
   aspect-ratio: 4 / 5;
   object-fit: cover;
+  object-position: 50% 20%;
 }
 .eyebrow {
   margin: 0 0 0.6em;
