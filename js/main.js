@@ -135,9 +135,12 @@
   if (manifesto && !reduceMotion) {
     var accents = (manifesto.getAttribute("data-accent") || "").split(",");
     var html = manifesto.textContent.trim().split(/\s+/).map(function (w) {
-      var clean = w.replace(/[.,:;!?]/g, "").toLowerCase();
-      var cls = accents.indexOf(clean) > -1 ? "w accent" : "w";
-      return '<span class="' + cls + '">' + w + "</span>";
+      // la ponctuation finale reste hors du mot coloré
+      var m = w.match(/^(.*?)([.,:;!?]*)$/);
+      if (accents.indexOf(m[1].toLowerCase()) > -1) {
+        return '<span class="w"><span class="accent">' + m[1] + "</span>" + m[2] + "</span>";
+      }
+      return '<span class="w">' + w + "</span>";
     }).join(" ");
     manifesto.setAttribute("aria-label", manifesto.textContent.trim());
     manifesto.innerHTML = html;
