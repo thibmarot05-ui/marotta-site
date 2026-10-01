@@ -490,13 +490,15 @@ em { font-style: italic; }
 .marquee {
   position: relative;
   overflow: hidden;
-  padding: 22px 0;
-  background: var(--red);
+  padding: 24px 0;
+  background: var(--ink);
   color: var(--white);
-  transform: rotate(-1.5deg) scale(1.02);
-  margin: -26px 0 0;
+  border-top: 1px solid rgba(255, 107, 125, 0.45);
+  border-bottom: 1px solid rgba(255, 107, 125, 0.45);
+  transform: rotate(-1deg) scale(1.02);
+  margin: -24px 0 0;
   z-index: 2;
-  box-shadow: 0 20px 40px rgba(163, 0, 21, 0.25);
+  box-shadow: 0 24px 40px rgba(5, 4, 22, 0.22);
 }
 .marquee-track {
   display: flex;
@@ -514,7 +516,17 @@ em { font-style: italic; }
   font-style: italic;
   white-space: nowrap;
 }
-.marquee-track span::after { content: "✦"; font-style: normal; font-size: 0.6em; opacity: 0.7; }
+/* un mot sur deux en contour, séparés par un simple filet */
+.marquee-track span:nth-child(even) {
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.75);
+}
+.marquee-track span::after {
+  content: "";
+  width: 56px;
+  height: 1px;
+  background: #ff6b7d;
+}
 @keyframes marquee { to { transform: translateX(-50%); } }
 
 /* ---------- Sections ---------- */
@@ -608,7 +620,7 @@ em { font-style: italic; }
 }
 .manifesto-text .w { opacity: 0.16; transition: opacity 0.3s; }
 .manifesto-text .w.is-lit { opacity: 1; }
-.manifesto-text .w.accent { font-style: italic; color: #ff6b7d; }
+.manifesto-text .accent { font-style: italic; color: #ff6b7d; }
 .no-js .manifesto-text .w, .manifesto-text:not(.is-split) { opacity: 1; }
 
 /* Méthode en 4 étapes */
