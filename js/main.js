@@ -94,7 +94,7 @@
 
   var revealSelectors = [
     "[data-reveal]", ".section-title", ".section-intro", ".solution", ".about-figure",
-    ".about > div", ".card", ".contact-side", ".prose > *", ".pillar", ".steps li",
+    ".about > div", ".card", ".contact-side", ".prose > *", ".pillar", ".steps li", ".life-group",
     ".cta h2", ".cta p", ".cta .btn", ".cta-contacts > div", ".footer-grid > *"
   ];
   var toReveal = document.querySelectorAll(revealSelectors.join(","));
@@ -203,4 +203,8 @@
       if (opt.value === params.get("sujet")) subject.value = opt.value;
     });
   }
+
+  // Objet prérempli depuis une situation de vie de l'accueil
+  var objet = document.getElementById("objet");
+  if (objet && params.get("objet")) objet.value = params.get("objet").slice(0, 150);
 })();
