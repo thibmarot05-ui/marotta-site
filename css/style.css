@@ -663,6 +663,59 @@ em { font-style: italic; }
 .steps h3 span { display: block; margin-bottom: 0.6em; font-family: var(--sans); font-size: 0.75rem; letter-spacing: 0.2em; color: rgba(255, 255, 255, 0.5); }
 .steps p { margin: 0; color: rgba(255, 255, 255, 0.65); font-size: 0.98rem; }
 
+/* Situations de vie (« Quand me contacter ») */
+.life-intro { margin: 0; max-width: 640px; color: var(--muted); }
+.life-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.life-group {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 30px 26px 32px;
+  border-top: 3px solid transparent;
+  transition: border-color 0.4s, box-shadow 0.5s var(--ease);
+}
+.life-group:hover { border-top-color: var(--red); box-shadow: 0 26px 50px rgba(5, 4, 22, 0.14); }
+.life-group h3 { font-size: 1.7rem; margin-bottom: 0.9em; }
+.life-group h3 span {
+  display: block;
+  margin-bottom: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--red);
+}
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.chip {
+  position: relative;
+  display: block;
+  padding: 10px 40px 10px 16px;
+  border: 1px solid rgba(5, 4, 22, 0.12);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
+.chip::after {
+  content: "→";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translate(-6px, -50%);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.4s var(--ease);
+}
+.chip:hover,
+.chip:focus-visible { background: var(--red); border-color: var(--red); color: var(--white); }
+.chip:hover::after,
+.chip:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+
 /* Grand appel à l'action */
 .cta-xl { padding: 140px 0 110px; }
 .cta-xl-inner {
@@ -1079,6 +1132,7 @@ a.contact-item:hover .contact-item-icon { background: var(--red); color: var(--w
 
 @media (max-width: 991px) {
   .solutions { grid-template-columns: 1fr 1fr; }
+  .life-grid { grid-template-columns: 1fr 1fr; }
   .about, .contact-layout { grid-template-columns: 1fr; gap: 50px; }
   .about-figure { max-width: 420px; margin: 0 auto; }
   .steps { grid-template-columns: 1fr 1fr; row-gap: 70px; }
@@ -1120,7 +1174,7 @@ a.contact-item:hover .contact-item-icon { background: var(--red); color: var(--w
   .section { padding: 80px 0; }
   .manifesto { padding: 100px 0 80px; }
   .cta-xl { padding: 100px 0 80px; }
-  .solutions, .form-grid, .steps { grid-template-columns: 1fr; }
+  .solutions, .form-grid, .steps, .life-grid { grid-template-columns: 1fr; }
   .pillar { padding: 26px 8px; gap: 14px; grid-template-columns: 36px 1fr 44px; }
   .pillar:hover { padding-left: 16px; }
   .pillar-arrow { width: 44px; height: 44px; }
