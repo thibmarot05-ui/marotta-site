@@ -247,6 +247,8 @@ let DB=null, uid=null, remoteAt=null, dirty=false, saving=false, syncState="none
 function freshSeed(){const d=JSON.parse(JSON.stringify(SEED));d.savedAt=0;addDefaults(d);return d}
 /* ajoute les nouveaux modèles de lettres livrés avec l'app, sans toucher à ceux de l'utilisateur */
 function addDefaults(d){d.templates=d.templates||[];
+  /* e-mails : « Meilleures salutations » est déjà dans la signature Outlook (retiré une seule fois) */
+  if(d.settings&&!d.settings.mailV2){const m=d.settings.mail;if(m)["body","bodyDevis"].forEach(k=>{if(typeof m[k]==="string")m[k]=m[k].replace(/\n*Meilleures salutations[ \t]*(?=\n|$)/,"")});d.settings.mailV2=true}
   if(d.settings&&typeof d.settings.text==="string")d.settings.text=d.settings.text.replace("{delai} jours ouvrables","{delai} jours");d.insurers=d.insurers||[];d.activities=d.activities||[];d.letters=d.letters||[];
   DEFAULT_TPL.forEach(t=>{if(!d.templates.some(x=>x.id===t.id))d.templates.push(JSON.parse(JSON.stringify(t)))})}
 const cacheKey=()=>"tm-crm-cache-"+uid;
@@ -455,8 +457,8 @@ const printInv=f=>printPages(docHTML(f),f.no+(f.type==="devis"?" (Devis)":"")+" 
 /* ================= Envoi par e-mail ================= */
 const MAIL_DEF={
   subject:"{type} {no} – {marque}",
-  body:"{bonjour}\n\nVeuillez trouver ci-joint ma {type_min} n° {no} du {date}, d'un montant de {montant}, payable jusqu'au {echeance}.\n\nVous pouvez la régler facilement en scannant le QR code avec votre application bancaire.\n\nJe reste à votre disposition pour toute question.\n\nMeilleures salutations\n\n{signature}",
-  bodyDevis:"{bonjour}\n\nVeuillez trouver ci-joint mon devis n° {no} du {date}, d'un montant de {montant}.\n\nJe reste à votre disposition pour toute question et me réjouis de votre retour.\n\nMeilleures salutations\n\n{signature}"
+  body:"{bonjour}\n\nVeuillez trouver ci-joint ma {type_min} n° {no} du {date}, d'un montant de {montant}, payable jusqu'au {echeance}.\n\nVous pouvez la régler facilement en scannant le QR code avec votre application bancaire.\n\nJe reste à votre disposition pour toute question.\n\n{signature}",
+  bodyDevis:"{bonjour}\n\nVeuillez trouver ci-joint mon devis n° {no} du {date}, d'un montant de {montant}.\n\nJe reste à votre disposition pour toute question et me réjouis de votre retour.\n\n{signature}"
 };
 const loadJs=src=>new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("chargement "+src));document.head.appendChild(s)});
 const pdfName=f=>(f.type==="devis"?"Devis ":"Facture ")+f.no+" - "+cname(client(f.client)).replace(/[\\/:*?"<>|]/g,"")+".pdf";
