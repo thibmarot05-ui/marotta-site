@@ -10,7 +10,7 @@
   <link rel="icon" href="images/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.bunny.net">
   <link rel="stylesheet" href="https://fonts.bunny.net/css?family=montserrat:400,500,600,700&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body class="page-inner">
 
@@ -114,6 +114,16 @@
               <span>Marotta Consulting<br>Sonville 20, 2534 Orvin</span>
             </div>
           </div>
+
+          <!-- Carte de visite : QR code généré depuis documents/thibaud-marotta.vcf (js/main.js) -->
+          <div class="vcard-box">
+            <div class="vcard-qr" id="vcard-qr" role="img" aria-label="QR code pour enregistrer le contact de Thibaud Marotta"></div>
+            <div>
+              <h3>Enregistrer mon contact</h3>
+              <p>Scannez ce code avec l'appareil photo de votre téléphone.</p>
+              <a class="btn btn-dark" href="documents/thibaud-marotta.vcf" download="Thibaud Marotta.vcf">Ajouter à mes contacts</a>
+            </div>
+          </div>
         </aside>
       </div>
     </section>
@@ -153,6 +163,7 @@
     </div>
   </footer>
 
-  <script src="js/main.js?v=7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script src="js/main.js?v=8"></script>
 </body>
 </html>

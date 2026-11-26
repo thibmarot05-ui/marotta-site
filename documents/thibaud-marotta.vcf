@@ -1,0 +1,11 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Marotta;Thibaud;;;
+FN:Thibaud Marotta
+ORG:Marotta Consulting
+TITLE:Conseiller en assurance\, prévoyance et finance
+TEL;TYPE=CELL:+41795019582
+EMAIL;TYPE=WORK:thibaud@marotta.ch
+ADR;TYPE=WORK:;;Sonville 20;Orvin;;2534;Suisse
+URL:https://marotta.ch
+END:VCARD
