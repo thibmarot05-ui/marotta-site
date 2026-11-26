@@ -207,7 +207,7 @@ const SEED = {
   phone:"079 501 95 82", email:"thibaud@marotta.ch", web:"www.marotta.ch",
   bank:"RAIFFEISEN", iban:"CH61 8080 8002 2233 6171 1", bic:"RAIFCH22", clearing:"80808",
   rate:130, feeMode:"pct", feePct:5, feeFixed:15, delay:20, qr:true, addrX:117, addrY:50,
-  text:"Voici la facture de mes honoraires pour le mandat accompli. Je vous prie de bien vouloir vous acquitter de cette facture dans un délai de {delai} jours ouvrables.\n\nEn vous remerciant d'avance, veuillez agréer, {politesse}, mes meilleures salutations.",
+  text:"Voici la facture de mes honoraires pour le mandat accompli. Je vous prie de bien vouloir vous acquitter de cette facture dans un délai de {delai} jours.\n\nEn vous remerciant d'avance, veuillez agréer, {politesse}, mes meilleures salutations.",
   footer:"Thibaud Marotta – intermédiaire d'assurance inscrit au registre de la FINMA, n° F01587487"
  },
  clients:SEED_CLIENTS,
@@ -246,7 +246,8 @@ let sb=(window.supabase&&!SUPA_URL.startsWith("__"))?window.supabase.createClien
 let DB=null, uid=null, remoteAt=null, dirty=false, saving=false, syncState="none", wTimer=null;
 function freshSeed(){const d=JSON.parse(JSON.stringify(SEED));d.savedAt=0;addDefaults(d);return d}
 /* ajoute les nouveaux modèles de lettres livrés avec l'app, sans toucher à ceux de l'utilisateur */
-function addDefaults(d){d.templates=d.templates||[];d.insurers=d.insurers||[];d.activities=d.activities||[];d.letters=d.letters||[];
+function addDefaults(d){d.templates=d.templates||[];
+  if(d.settings&&typeof d.settings.text==="string")d.settings.text=d.settings.text.replace("{delai} jours ouvrables","{delai} jours");d.insurers=d.insurers||[];d.activities=d.activities||[];d.letters=d.letters||[];
   DEFAULT_TPL.forEach(t=>{if(!d.templates.some(x=>x.id===t.id))d.templates.push(JSON.parse(JSON.stringify(t)))})}
 const cacheKey=()=>"tm-crm-cache-"+uid;
 function saveLocal(){try{localStorage.setItem(cacheKey(),JSON.stringify({data:DB,remoteAt}))}catch(e){}}
@@ -328,7 +329,7 @@ function calc(f){
   rows.forEach(l=>{ if(l.k==="fee") total+=l.a; if(l.k==="pct"){l.q=1;l.p=r2(sub*(+l.pct||0)/100);l.a=l.p;total+=l.a;} });
   return {rows,total:r2(total)};
 }
-const dueDate=f=>addDays(f.date,(DB.settings.delay||20)+8);
+const dueDate=f=>addDays(f.date,DB.settings.delay||20);  /* échéance = date de facture + délai (jours calendaires) */
 function isLate(f){return f.type==="facture"&&f.status==="envoyee"&&dueDate(f)<todayIso()}
 function statusTag(f){
   if(f.type==="devis") return '<span class="tag devis">Devis</span>';
@@ -911,7 +912,7 @@ function vSettings(){resetMain();
     <h3 style="margin-top:16px">Banque</h3><div class="grid4">${F("bank","Banque")}${F("iban","IBAN")}${F("bic","BIC")}${F("clearing","Clearing")}</div>
     <h3 style="margin-top:16px">Factures</h3><div class="grid3">${F("rate","Tarif horaire (CHF)","number")}
      <label class="f">Frais administratifs par défaut<select id="s_feeMode"><option value="pct">En %</option><option value="fixed">Montant fixe</option></select></label>
-     ${F("feePct","Frais en %","number")}${F("feeFixed","Frais fixes (CHF)","number")}${F("delay","Délai de paiement (jours ouvrables)","number")}
+     ${F("feePct","Frais en %","number")}${F("feeFixed","Frais fixes (CHF)","number")}${F("delay","Délai de paiement (jours)","number")}
      <label class="f">QR-facture<select id="s_qr"><option value="1">Oui, en page 2</option><option value="0">Non</option></select></label></div>
     <label class="f" style="margin-top:12px">Texte standard des factures ({delai} et {politesse} sont remplacés automatiquement)<textarea id="s_text" rows="4">${esc(s.text)}</textarea></label>
     <h3 style="margin-top:16px">E-mail d'envoi des factures</h3>
