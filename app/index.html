@@ -148,7 +148,7 @@ table.items .desc{white-space:pre-line}
 @media (max-width:1000px){.editor,.cols{grid-template-columns:1fr}.previewWrap{position:static;max-height:none}.grid4{grid-template-columns:1fr 1fr}}
 /* ===== iPhone ===== */
 @media (max-width:700px){
-  body{font-size:15px}
+  body{font-size:15px;overflow-x:hidden}
   header.app{padding:6px 10px calc(6px) 10px;padding-top:max(6px,env(safe-area-inset-top));gap:6px}
   header.app img{height:22px}
   nav{margin-left:0;order:3;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
@@ -450,6 +450,83 @@ function printPages(html,title){
   Promise.all(imgs.map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r}))).then(()=>{window.print();document.title=old;});
 }
 const printInv=f=>printPages(docHTML(f),f.no+(f.type==="devis"?" (Devis)":"")+" - "+cname(client(f.client)));
+
+/* ================= Envoi par e-mail ================= */
+const MAIL_DEF={
+  subject:"{type} {no} – {marque}",
+  body:"{bonjour}\n\nVeuillez trouver ci-joint ma {type_min} n° {no} du {date}, d'un montant de {montant}, payable jusqu'au {echeance}.\n\nVous pouvez la régler facilement en scannant le QR code avec votre application bancaire.\n\nJe reste à votre disposition pour toute question.\n\nMeilleures salutations\n\n{signature}",
+  bodyDevis:"{bonjour}\n\nVeuillez trouver ci-joint mon devis n° {no} du {date}, d'un montant de {montant}.\n\nJe reste à votre disposition pour toute question et me réjouis de votre retour.\n\nMeilleures salutations\n\n{signature}"
+};
+const loadJs=src=>new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("chargement "+src));document.head.appendChild(s)});
+const pdfName=f=>(f.type==="devis"?"Devis ":"Facture ")+f.no+" - "+cname(client(f.client)).replace(/[\\/:*?"<>|]/g,"")+".pdf";
+/* PDF fidèle à l'impression : chaque page A4 est photographiée en haute définition (QR code lisible) */
+async function makePdf(f){
+  await loadJs("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+  await loadJs("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  const box=document.createElement("div");box.style.cssText="position:fixed;left:-10000px;top:0;width:210mm;background:#fff";
+  box.innerHTML=docHTML(f);document.body.appendChild(box);
+  try{
+    await Promise.all([...box.querySelectorAll("img")].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r})));
+    const pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4",compress:true});
+    const pages=[...box.querySelectorAll(".page")];
+    for(let i=0;i<pages.length;i++){
+      pages[i].style.boxShadow="none";pages[i].style.margin="0";
+      const cv=await html2canvas(pages[i],{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      if(i)pdf.addPage();
+      pdf.addImage(cv.toDataURL("image/jpeg",0.92),"JPEG",0,0,210,297);
+    }
+    return pdf.output("blob");
+  }finally{box.remove()}
+}
+function mailText(f){
+  const s=DB.settings,c=client(f.client),m=Object.assign({},MAIL_DEF,s.mail||{}),dv=f.type==="devis";
+  const bonjour=c.company&&!c.civ?"Bonjour,":(c.civ&&c.last?"Bonjour "+c.civ+" "+c.last+",":"Bonjour,");
+  const sig=[s.name,s.title,s.brand,s.phone,s.email,s.web].filter(Boolean).join("\n");
+  const v={type:dv?"Devis":"Facture",type_min:dv?"devis":"facture",no:f.no,date:dFr(f.date),montant:money(calc(f).total,f.cur||"CHF").replace(/ /g," "),
+    echeance:dFr(dueDate(f)),objet:f.subject||"",marque:s.brand||s.name,bonjour,signature:sig,client:cname(c)};
+  const fill=t=>String(t||"").replace(/\{(\w+)\}/g,(x,k)=>k in v?v[k]:x);
+  return {to:(c.email||"").trim(),subject:fill(m.subject),body:fill(dv?m.bodyDevis:m.body)};
+}
+const isMobile=()=>/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+async function mailInv(f){
+  const c=client(f.client),t=mailText(f);
+  const dlg=document.createElement("div");
+  dlg.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;display:flex;align-items:center;justify-content:center;padding:12px";
+  dlg.innerHTML=`<div class="card" style="width:100%;max-width:560px;max-height:92vh;overflow:auto">
+    <div class="row" style="margin-bottom:10px"><h2 style="margin:0">✉ Envoyer ${f.type==="devis"?"le devis":"la facture"} ${esc(f.no)}</h2><div class="sp"></div><button class="btn sm" id="m_x">✕</button></div>
+    <label class="f">À<input id="m_to" type="email" value="${esc(t.to)}" placeholder="adresse e-mail du client"></label>
+    ${t.to?"":'<div class="muted" style="font-size:12px;color:var(--warn);margin-top:3px">Pas d\'e-mail sur la fiche client : tape-le ici, il sera enregistré sur sa fiche.</div>'}
+    <label class="f" style="margin-top:8px">Objet<input id="m_sub" value="${esc(t.subject)}"></label>
+    <label class="f" style="margin-top:8px">Texte<textarea id="m_body" rows="11">${esc(t.body)}</textarea></label>
+    <div class="muted" style="font-size:12px;margin:8px 0" id="m_info">⏳ Préparation du PDF…</div>
+    <div class="row"><button class="btn pri" id="m_go" disabled>${isMobile()?"Envoyer (choisir Outlook)":"Ouvrir Outlook + télécharger le PDF"}</button><button class="btn" id="m_copy">Copier le texte</button></div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">${isMobile()?"Le PDF est joint automatiquement : choisis <b>Outlook</b> dans la liste.":"Outlook s'ouvre avec le mail prêt et le PDF est enregistré dans <b>Téléchargements</b> : glisse-le dans le mail (ou clique sur « Joindre un fichier »)."}</p></div>`;
+  document.body.appendChild(dlg);
+  const close=()=>dlg.remove();
+  dlg.querySelector("#m_x").onclick=close;dlg.onclick=e=>{if(e.target===dlg)close()};
+  dlg.querySelector("#m_copy").onclick=async()=>{try{await navigator.clipboard.writeText(dlg.querySelector("#m_body").value);toast("Texte copié")}catch(e){toast("Copie impossible")}};
+  let blob=null;
+  try{blob=await makePdf(f);dlg.querySelector("#m_info").textContent="✅ PDF prêt : "+pdfName(f);dlg.querySelector("#m_go").disabled=false}
+  catch(e){console.warn(e);dlg.querySelector("#m_info").textContent="⚠ Le PDF n'a pas pu être créé (connexion internet ?). Tu peux quand même ouvrir le mail et joindre le PDF imprimé.";dlg.querySelector("#m_go").disabled=false}
+  dlg.querySelector("#m_go").onclick=async()=>{
+    const to=dlg.querySelector("#m_to").value.trim(),sub=dlg.querySelector("#m_sub").value,body=dlg.querySelector("#m_body").value;
+    const file=blob?new File([blob],pdfName(f),{type:"application/pdf"}):null;
+    let ok=false;
+    if(isMobile()&&file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:sub,text:body});ok=true}catch(e){if(e.name==="AbortError")return}
+    }
+    if(!ok){
+      if(file){const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
+      location.href="mailto:"+encodeURIComponent(to).replace(/%40/g,"@")+"?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body.replace(/\r?\n/g,"\r\n"));
+    }
+    /* suivi : e-mail du client, statut, journal */
+    if(to&&!c.email&&c.id){c.email=to}
+    if(f.type==="facture"&&f.status==="brouillon")f.status="envoyee";
+    DB.activities.push({id:"a"+Date.now(),client:f.client,date:todayIso(),type:"Email",summary:(f.type==="devis"?"Devis ":"Facture ")+f.no+" envoyé(e) par e-mail"+(to?" à "+to:""),next:"",nextDate:""});
+    save();close();toast(f.type==="facture"?"Facture marquée « envoyée »":"Noté dans le journal du client");
+    if(typeof render==="function"&&(view==="list"||view==="client"||view==="home"))render();
+  };
+}
 function fitPreview(){const pv=$("#pv");if(!pv)return;const w=$("#pw").clientWidth-32,sc=Math.min(1,w/794);pv.style.width="794px";pv.style.transform=`scale(${sc})`;pv.style.marginBottom=(-(pv.scrollHeight*(1-sc)))+"px"}
 window.addEventListener("resize",fitPreview);
 
@@ -550,7 +627,7 @@ function vList(){resetMain();
    </div>
    <div class="card" style="padding:0;overflow:auto"><table class="list"><thead><tr><th>Date</th><th>N°</th><th>Client</th><th>Objet</th><th class="r">Montant</th><th>Statut</th><th></th></tr></thead><tbody>
    ${shown.map(f=>`<tr data-id="${f.id}"><td>${dFr(f.date)}</td><td>${esc(f.no)}</td><td>${esc(cname(client(f.client)))}</td><td>${esc(f.subject)}</td><td class="r">${money(calc(f).total,f.cur||"CHF")}</td><td>${statusTag(f)}</td>
-     <td class="r">${f.type==="facture"&&f.status!=="payee"?`<button class="btn sm" data-a="paid">Payée</button> `:""}${f.type==="devis"?`<button class="btn sm" data-a="conv">→ Facture</button> `:""}<button class="btn sm" data-a="print" title="Imprimer ou enregistrer en PDF">🖨 Imprimer</button> <button class="btn sm" data-a="dup" title="Créer une nouvelle facture à partir de celle-ci">Copier</button></td></tr>`).join("")||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">Aucune facture</td></tr>`}
+     <td class="r">${f.type==="facture"&&f.status!=="payee"?`<button class="btn sm" data-a="paid">Payée</button> `:""}${f.type==="devis"?`<button class="btn sm" data-a="conv">→ Facture</button> `:""}<button class="btn sm" data-a="print" title="Imprimer ou enregistrer en PDF">🖨 Imprimer</button> <button class="btn sm" data-a="mail" title="Envoyer par e-mail">✉ E-mail</button> <button class="btn sm" data-a="dup" title="Créer une nouvelle facture à partir de celle-ci">Copier</button></td></tr>`).join("")||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">Aucune facture</td></tr>`}
    </tbody></table></div>`;
   $("#st").value=filt.st;$("#yr").value=filt.year;
   $("#q").oninput=e=>{filt.q=e.target.value;const p=e.target.selectionStart;vList();const q=$("#q");q.focus();q.setSelectionRange(p,p)};
@@ -562,6 +639,7 @@ function vList(){resetMain();
 function invAction(f,a,back){
   if(a==="edit"){cur=f.id;go("edit")}
   if(a==="print")printInv(f);
+  if(a==="mail")mailInv(f);
   if(a==="paid"){f.status="payee";f.paidOn=todayIso();save();back();toast("Facture "+f.no+" marquée payée")}
   if(a==="dup"||a==="conv"){const n=JSON.parse(JSON.stringify(f));n.id="f"+Date.now();n.date=todayIso();n.status="brouillon";n.type="facture";delete n.src;delete n.paidOn;n.no=nextNo(n);DB.invoices.push(n);save();cur=n.id;go("edit");toast(a==="conv"?"Facture créée à partir du devis":"Copie créée : modifie-la puis enregistre")}
 }
@@ -575,7 +653,7 @@ function blankInv(clientId){
 function vEdit(clientId){resetMain();
   const isNew=!cur; const f=isNew?blankInv(clientId):JSON.parse(JSON.stringify(DB.invoices.find(x=>x.id===cur)));
   $("#main").innerHTML=`<div class="editor"><div class="form">
-   <div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0">${isNew?"Nouvelle facture":(f.type==="devis"?"Devis ":"Facture ")+esc(f.no)}</h2><div class="sp"></div>${isNew?"":'<button class="btn pri" id="e_print2">🖨 Imprimer</button>'}</div>
+   <div class="card"><div class="row" style="margin-bottom:12px"><h2 style="margin:0">${isNew?"Nouvelle facture":(f.type==="devis"?"Devis ":"Facture ")+esc(f.no)}</h2><div class="sp"></div>${isNew?"":'<button class="btn pri" id="e_print2">🖨 Imprimer</button><button class="btn" id="e_mail">✉ E-mail</button>'}</div>
     <div class="grid2">
      <label class="f">Type<select id="e_type"><option value="facture">Facture</option><option value="devis">Devis</option></select></label>
      <label class="f">Statut<select id="e_status"><option value="brouillon">Brouillon</option><option value="envoyee">Envoyée</option><option value="payee">Payée</option></select></label>
@@ -629,6 +707,7 @@ function vEdit(clientId){resetMain();
   $("#e_save").onclick=()=>{if(store()){toast("Enregistrée");go("list")}};
   $("#e_print").onclick=()=>{if(store()){toast("Choisis ton imprimante, ou « Enregistrer au format PDF »");printInv(f)}};
   if($("#e_print2"))$("#e_print2").onclick=()=>{if(store())printInv(f)};
+  if($("#e_mail"))$("#e_mail").onclick=()=>{if(store())mailInv(DB.invoices.find(x=>x.id===f.id))};
   if($("#e_del"))$("#e_del").onclick=()=>{if(confirm("Supprimer "+f.no+" ? (Le PDF dans tes dossiers n'est pas touché.)")){DB.invoices=DB.invoices.filter(x=>x.id!==f.id);save();go("list")}};
 }
 
@@ -691,7 +770,7 @@ function vClient(){resetMain();
      <label class="f" style="margin-top:8px">Prochaine étape<input id="a_next" placeholder="ex. Envoyer proposition 3a"></label>
      <div class="row" style="margin-top:8px"><button class="btn pri sm" id="a_add">Ajouter au journal</button><span class="muted" style="font-size:12px">Met à jour « dernier contact » et « prochaine action ».</span></div>
      <div style="margin-top:10px">${acts.map(a=>`<div class="act"><div class="t">${dFr(a.date)} · ${esc(a.type)} <button class="btn sm" data-dela="${a.id}" style="float:right">✕</button></div><div style="white-space:pre-line">${esc(a.summary)}</div>${a.next?`<div class="muted">→ ${esc(a.next)}${a.nextDate?" ("+dFr(a.nextDate)+")":""}</div>`:""}</div>`).join("")||'<p class="muted">Aucune activité.</p>'}</div></div>
-    <div class="card"><h3>Factures & devis</h3>${invs.map(f=>`<div class="todo" data-f="${f.id}"><div class="d">${dFr(f.date)}</div><div style="flex:1">${esc(f.no)} <span class="muted">· ${esc(f.subject)}</span></div><b>${money(calc(f).total,f.cur)}</b> ${statusTag(f)} <button class="btn sm" data-pf="${f.id}" title="Imprimer">🖨</button></div>`).join("")||'<p class="muted">Aucune facture.</p>'}</div>
+    <div class="card"><h3>Factures & devis</h3>${invs.map(f=>`<div class="todo" data-f="${f.id}"><div class="d">${dFr(f.date)}</div><div style="flex:1">${esc(f.no)} <span class="muted">· ${esc(f.subject)}</span></div><b>${money(calc(f).total,f.cur)}</b> ${statusTag(f)} <button class="btn sm" data-pf="${f.id}" title="Imprimer">🖨</button><button class="btn sm" data-mf="${f.id}" title="Envoyer par e-mail">✉</button></div>`).join("")||'<p class="muted">Aucune facture.</p>'}</div>
     <div class="card"><h3>Lettres</h3>${lets.map(l=>`<div class="todo" data-l="${l.id}"><div class="d">${dFr(l.date)}</div><div style="flex:1">${esc(fillTpl(l.subject,l,c)||"(sans objet)")}</div></div>`).join("")||'<p class="muted">Aucune lettre.</p>'}</div>`}
    </div></div>`;
   const read=()=>{document.querySelectorAll("[data-k]").forEach(i=>c[i.dataset.k]=i.value.trim());c.country=(c.country||"CH").toUpperCase();
@@ -714,6 +793,7 @@ function vClient(){resetMain();
     DB.activities.push(a);if(!c.lastContact||a.date>c.lastContact)c.lastContact=a.date;if(a.next){c.nextAction=a.next;c.nextDate=a.nextDate}
     const i=DB.clients.findIndex(x=>x.id===c.id);DB.clients[i]=c;save();vClient();toast("Ajouté au journal")};
   $("#main").addEventListener("click",e=>{const pf=e.target.closest("[data-pf]");if(pf){printInv(DB.invoices.find(x=>x.id===pf.dataset.pf));return}
+    const mf=e.target.closest("[data-mf]");if(mf){mailInv(DB.invoices.find(x=>x.id===mf.dataset.mf));return}
     const d=e.target.closest("[data-dela]");if(d){DB.activities=DB.activities.filter(a=>a.id!==d.dataset.dela);save();vClient();return}
     const f=e.target.closest("[data-f]");if(f){cur=f.dataset.f;go("edit")}const l=e.target.closest("[data-l]");if(l){curLetter=l.dataset.l;go("letter")}});
 }
@@ -812,6 +892,11 @@ function vSettings(){resetMain();
      ${F("feePct","Frais en %","number")}${F("feeFixed","Frais fixes (CHF)","number")}${F("delay","Délai de paiement (jours ouvrables)","number")}
      <label class="f">QR-facture<select id="s_qr"><option value="1">Oui, en page 2</option><option value="0">Non</option></select></label></div>
     <label class="f" style="margin-top:12px">Texte standard des factures ({delai} et {politesse} sont remplacés automatiquement)<textarea id="s_text" rows="4">${esc(s.text)}</textarea></label>
+    <h3 style="margin-top:16px">E-mail d'envoi des factures</h3>
+    <p class="muted" style="font-size:12px;margin:0 0 6px">Mots remplacés automatiquement : {bonjour} {type} {type_min} {no} {date} {montant} {echeance} {objet} {client} {marque} {signature}</p>
+    <label class="f">Objet<input id="s_mSub" value="${esc((s.mail||{}).subject||MAIL_DEF.subject)}"></label>
+    <label class="f" style="margin-top:8px">Texte pour une facture<textarea id="s_mBody" rows="8">${esc((s.mail||{}).body||MAIL_DEF.body)}</textarea></label>
+    <label class="f" style="margin-top:8px">Texte pour un devis<textarea id="s_mDev" rows="6">${esc((s.mail||{}).bodyDevis||MAIL_DEF.bodyDevis)}</textarea></label>
     <h3 style="margin-top:16px">Enveloppe à fenêtre (C5, feuille pliée en deux)</h3><div class="grid3">${F("addrX","Adresse : depuis la gauche (mm)","number")}${F("addrY","Adresse : depuis le haut (mm)","number")}<div style="align-self:end"><button class="btn" id="s_test">Imprimer une page test</button></div></div>
     <div class="row" style="margin-top:16px"><button class="btn pri" id="s_save">Enregistrer</button></div></div>
    <div class="card"><h3>Copie manuelle</h3><p class="muted">En plus de la sauvegarde automatique, tu peux télécharger une copie datée (fichier .json) ou en recharger une.</p>
@@ -819,7 +904,8 @@ function vSettings(){resetMain();
     <div class="row"><button class="btn" id="bExport">Télécharger une copie</button><button class="btn" id="bImport">Recharger une copie</button><input type="file" id="fImport" accept=".json" hidden></div></div></div>`;
   $("#s_feeMode").value=s.feeMode;$("#s_qr").value=s.qr?"1":"0";
   const readS=()=>{["brand","name","title","street","nr","zip","city","phone","email","web","bank","iban","bic","clearing","text","footer"].forEach(k=>s[k]=$("#s_"+k).value.trim());
-    ["rate","feePct","feeFixed","delay","addrX","addrY"].forEach(k=>s[k]=+$("#s_"+k).value||0);s.feeMode=$("#s_feeMode").value;s.qr=$("#s_qr").value==="1"};
+    ["rate","feePct","feeFixed","delay","addrX","addrY"].forEach(k=>s[k]=+$("#s_"+k).value||0);s.feeMode=$("#s_feeMode").value;s.qr=$("#s_qr").value==="1";
+    s.mail={subject:$("#s_mSub").value,body:$("#s_mBody").value,bodyDevis:$("#s_mDev").value}};
   $("#s_save").onclick=()=>{readS();save();toast("Paramètres enregistrés")};
   $("#s_test").onclick=()=>{readS();save();printPages(testPageHTML(),"Page test enveloppe")};
   $("#bExport").onclick=()=>{const b=new Blob([JSON.stringify(DB,null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Marotta-copie-"+todayIso()+".json";a.click()};
