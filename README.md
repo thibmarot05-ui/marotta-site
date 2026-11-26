@@ -19,6 +19,7 @@ Site statique (HTML/CSS + un script JS), sans outil de construction, hébergé s
 | `js/main.js` | Animations, menu mobile, formulaire |
 | `images/` | Photos, logo et favicon (les illustrations de « Nos solutions » sont dessinées en SVG dans la page) |
 | `documents/lsa_art45.pdf` | Informations LSA art. 45 (mentions légales) |
+| `documents/thibaud-marotta.vcf` | Fiche contact (vCard) : sert au QR code et au bouton « Ajouter à mes contacts » de la page Contact. La modifier suffit à tout mettre à jour. |
 
 ## Voir le site en local
 

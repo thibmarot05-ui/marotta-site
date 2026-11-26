@@ -207,4 +207,27 @@
   // Objet prérempli depuis une situation de vie de l'accueil
   var objet = document.getElementById("objet");
   if (objet && params.get("objet")) objet.value = params.get("objet").slice(0, 150);
+
+  /* ---------- Page contact : QR code de la carte de visite ---------- */
+
+  // Le QR contient la fiche documents/thibaud-marotta.vcf : la modifier suffit à mettre le QR à jour.
+  var qrBox = document.getElementById("vcard-qr");
+  if (qrBox && window.qrcode && window.fetch) {
+    fetch("documents/thibaud-marotta.vcf")
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+      .then(function (vcf) {
+        window.qrcode.stringToBytes = window.qrcode.stringToBytesFuncs["UTF-8"];
+        var qr = window.qrcode(0, "L"); // affiché à l'écran : correction minimale = code moins dense
+        qr.addData(vcf.trim().replace(/\r?\n/g, "\r\n"), "Byte");
+        qr.make();
+        var n = qr.getModuleCount(), m = 3, size = n + 2 * m, d = "";
+        for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+          if (qr.isDark(y, x)) d += "M" + (x + m) + " " + (y + m) + "h1v1h-1z";
+        }
+        qrBox.innerHTML = '<svg viewBox="0 0 ' + size + " " + size + '" shape-rendering="crispEdges">' +
+          '<rect width="100%" height="100%" fill="#fff"/><path fill="#0b0a2e" d="' + d + '"/></svg>';
+        qrBox.classList.add("is-ready");
+      })
+      .catch(function () { /* pas de QR : le bouton « Ajouter à mes contacts » reste disponible */ });
+  }
 })();
