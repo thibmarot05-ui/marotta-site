@@ -481,13 +481,29 @@ async function makePdf(f){
 function mailText(f){
   const s=DB.settings,c=client(f.client),m=Object.assign({},MAIL_DEF,s.mail||{}),dv=f.type==="devis";
   const bonjour=c.company&&!c.civ?"Bonjour,":(c.civ&&c.last?"Bonjour "+c.civ+" "+c.last+",":"Bonjour,");
-  const sig=[s.name,s.title,s.brand,s.phone,s.email,s.web].filter(Boolean).join("\n");
+  /* par défaut, pas de signature texte : c'est Outlook qui ajoute la vraie signature (logo, mise en forme) */
+  const sig=s.mailSig?[s.name,s.title,s.brand,s.phone,s.email,s.web].filter(Boolean).join("\n"):"";
   const v={type:dv?"Devis":"Facture",type_min:dv?"devis":"facture",no:f.no,date:dFr(f.date),montant:money(calc(f).total,f.cur||"CHF").replace(/ /g," "),
     echeance:dFr(dueDate(f)),objet:f.subject||"",marque:s.brand||s.name,bonjour,signature:sig,client:cname(c)};
   const fill=t=>String(t||"").replace(/\{(\w+)\}/g,(x,k)=>k in v?v[k]:x);
-  return {to:(c.email||"").trim(),subject:fill(m.subject),body:fill(dv?m.bodyDevis:m.body)};
+  return {to:(c.email||"").trim(),subject:fill(m.subject),body:fill(dv?m.bodyDevis:m.body).replace(/\s+$/,"")};
 }
 const isMobile=()=>/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+/* Brouillon Outlook (.eml) : « X-Unsent: 1 » fait qu'Outlook l'ouvre comme un NOUVEAU mail à envoyer, PDF déjà joint */
+async function makeEml(to,sub,body,blob,name){
+  const b64u=s=>btoa(unescape(encodeURIComponent(s)));
+  const enc=s=>"=?UTF-8?B?"+b64u(s)+"?=";
+  const wrap=s=>s.replace(/.{1,76}/g,"$&\r\n");
+  const html=`<html><head><meta charset="utf-8"></head><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt">${esc(body).replace(/\r?\n/g,"<br>")}<br><br></body></html>`;
+  const pdf64=blob?await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(",")[1]);fr.readAsDataURL(blob)}):"";
+  const B="----=_Marotta_"+Date.now();
+  let m=(to?`To: ${to}\r\n`:"")+`Subject: ${enc(sub)}\r\nX-Unsent: 1\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${B}"\r\n\r\n`+
+    `--${B}\r\nContent-Type: text/html; charset="utf-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${wrap(b64u(html))}\r\n`;
+  if(pdf64)m+=`--${B}\r\nContent-Type: application/pdf; name="${enc(name)}"\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename="${enc(name)}"\r\n\r\n${wrap(pdf64)}\r\n`;
+  m+=`--${B}--\r\n`;
+  return new Blob([m],{type:"message/rfc822"});
+}
+function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
 async function mailInv(f){
   const c=client(f.client),t=mailText(f);
   const dlg=document.createElement("div");
@@ -499,14 +515,15 @@ async function mailInv(f){
     <label class="f" style="margin-top:8px">Objet<input id="m_sub" value="${esc(t.subject)}"></label>
     <label class="f" style="margin-top:8px">Texte<textarea id="m_body" rows="11">${esc(t.body)}</textarea></label>
     <div class="muted" style="font-size:12px;margin:8px 0" id="m_info">⏳ Préparation du PDF…</div>
-    <div class="row"><button class="btn pri" id="m_go" disabled>${isMobile()?"Envoyer (choisir Outlook)":"Ouvrir Outlook + télécharger le PDF"}</button><button class="btn" id="m_copy">Copier le texte</button></div>
-    <p class="muted" style="font-size:12px;margin-bottom:0">${isMobile()?"Le PDF est joint automatiquement : choisis <b>Outlook</b> dans la liste.":"Outlook s'ouvre avec le mail prêt et le PDF est enregistré dans <b>Téléchargements</b> : glisse-le dans le mail (ou clique sur « Joindre un fichier »)."}</p></div>`;
+    <div class="row"><button class="btn pri" id="m_go" disabled>${isMobile()?"Envoyer (choisir Outlook)":"Ouvrir dans Outlook (PDF joint)"}</button>${isMobile()?"":'<button class="btn" id="m_pdf" disabled>PDF seul</button>'}<button class="btn" id="m_copy">Copier le texte</button></div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">${isMobile()?"Le PDF est joint automatiquement : choisis <b>Outlook</b> dans la liste.":"Un mail prêt à envoyer (PDF joint) est créé : <b>clique dessus</b> dans la liste des téléchargements en haut à droite, Outlook l'ouvre. Ajoute ta signature (Insérer → Signature) puis Envoyer."}</p></div>`;
   document.body.appendChild(dlg);
   const close=()=>dlg.remove();
   dlg.querySelector("#m_x").onclick=close;dlg.onclick=e=>{if(e.target===dlg)close()};
   dlg.querySelector("#m_copy").onclick=async()=>{try{await navigator.clipboard.writeText(dlg.querySelector("#m_body").value);toast("Texte copié")}catch(e){toast("Copie impossible")}};
   let blob=null;
-  try{blob=await makePdf(f);dlg.querySelector("#m_info").textContent="✅ PDF prêt : "+pdfName(f);dlg.querySelector("#m_go").disabled=false}
+  const pdfBtn=dlg.querySelector("#m_pdf");
+  try{blob=await makePdf(f);dlg.querySelector("#m_info").textContent="✅ PDF prêt : "+pdfName(f);dlg.querySelector("#m_go").disabled=false;if(pdfBtn){pdfBtn.disabled=false;pdfBtn.onclick=()=>downloadBlob(blob,pdfName(f))}}
   catch(e){console.warn(e);dlg.querySelector("#m_info").textContent="⚠ Le PDF n'a pas pu être créé (connexion internet ?). Tu peux quand même ouvrir le mail et joindre le PDF imprimé.";dlg.querySelector("#m_go").disabled=false}
   dlg.querySelector("#m_go").onclick=async()=>{
     const to=dlg.querySelector("#m_to").value.trim(),sub=dlg.querySelector("#m_sub").value,body=dlg.querySelector("#m_body").value;
@@ -515,15 +532,20 @@ async function mailInv(f){
     if(isMobile()&&file&&navigator.canShare&&navigator.canShare({files:[file]})){
       try{await navigator.share({files:[file],title:sub,text:body});ok=true}catch(e){if(e.name==="AbortError")return}
     }
-    if(!ok){
-      if(file){const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
+    if(!ok&&isMobile()){
+      if(file)downloadBlob(file,file.name);
       location.href="mailto:"+encodeURIComponent(to).replace(/%40/g,"@")+"?subject="+encodeURIComponent(sub)+"&body="+encodeURIComponent(body.replace(/\r?\n/g,"\r\n"));
+      ok=true;
+    }
+    if(!ok){
+      const nm=(f.type==="devis"?"Mail devis ":"Mail facture ")+f.no+" - "+cname(c).replace(/[\\/:*?"<>|]/g,"")+".eml";
+      downloadBlob(await makeEml(to,sub,body,blob,pdfName(f)),nm);
     }
     /* suivi : e-mail du client, statut, journal */
     if(to&&!c.email&&c.id){c.email=to}
     if(f.type==="facture"&&f.status==="brouillon")f.status="envoyee";
     DB.activities.push({id:"a"+Date.now(),client:f.client,date:todayIso(),type:"Email",summary:(f.type==="devis"?"Devis ":"Facture ")+f.no+" envoyé(e) par e-mail"+(to?" à "+to:""),next:"",nextDate:""});
-    save();close();toast(f.type==="facture"?"Facture marquée « envoyée »":"Noté dans le journal du client");
+    save();close();toast(isMobile()?(f.type==="facture"?"Facture marquée « envoyée »":"Noté dans le journal du client"):"Clique sur le mail téléchargé (en haut à droite) : Outlook l'ouvre avec le PDF joint");
     if(typeof render==="function"&&(view==="list"||view==="client"||view==="home"))render();
   };
 }
@@ -897,6 +919,7 @@ function vSettings(){resetMain();
     <label class="f">Objet<input id="s_mSub" value="${esc((s.mail||{}).subject||MAIL_DEF.subject)}"></label>
     <label class="f" style="margin-top:8px">Texte pour une facture<textarea id="s_mBody" rows="8">${esc((s.mail||{}).body||MAIL_DEF.body)}</textarea></label>
     <label class="f" style="margin-top:8px">Texte pour un devis<textarea id="s_mDev" rows="6">${esc((s.mail||{}).bodyDevis||MAIL_DEF.bodyDevis)}</textarea></label>
+    <label class="row" style="margin-top:8px;font-size:13px"><input type="checkbox" id="s_mSig" ${s.mailSig?"checked":""}> Ajouter ma signature en texte simple à la place de {signature}. Laisse décoché si Outlook ajoute déjà ta signature.</label>
     <h3 style="margin-top:16px">Enveloppe à fenêtre (C5, feuille pliée en deux)</h3><div class="grid3">${F("addrX","Adresse : depuis la gauche (mm)","number")}${F("addrY","Adresse : depuis le haut (mm)","number")}<div style="align-self:end"><button class="btn" id="s_test">Imprimer une page test</button></div></div>
     <div class="row" style="margin-top:16px"><button class="btn pri" id="s_save">Enregistrer</button></div></div>
    <div class="card"><h3>Copie manuelle</h3><p class="muted">En plus de la sauvegarde automatique, tu peux télécharger une copie datée (fichier .json) ou en recharger une.</p>
@@ -905,7 +928,7 @@ function vSettings(){resetMain();
   $("#s_feeMode").value=s.feeMode;$("#s_qr").value=s.qr?"1":"0";
   const readS=()=>{["brand","name","title","street","nr","zip","city","phone","email","web","bank","iban","bic","clearing","text","footer"].forEach(k=>s[k]=$("#s_"+k).value.trim());
     ["rate","feePct","feeFixed","delay","addrX","addrY"].forEach(k=>s[k]=+$("#s_"+k).value||0);s.feeMode=$("#s_feeMode").value;s.qr=$("#s_qr").value==="1";
-    s.mail={subject:$("#s_mSub").value,body:$("#s_mBody").value,bodyDevis:$("#s_mDev").value}};
+    s.mail={subject:$("#s_mSub").value,body:$("#s_mBody").value,bodyDevis:$("#s_mDev").value};s.mailSig=$("#s_mSig").checked};
   $("#s_save").onclick=()=>{readS();save();toast("Paramètres enregistrés")};
   $("#s_test").onclick=()=>{readS();save();printPages(testPageHTML(),"Page test enveloppe")};
   $("#bExport").onclick=()=>{const b=new Blob([JSON.stringify(DB,null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Marotta-copie-"+todayIso()+".json";a.click()};
